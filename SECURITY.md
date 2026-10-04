@@ -179,7 +179,7 @@ Installed versions are newer than every fix release. `npm audit --omit=dev` repo
 - **Mitigation:** an explicit allowlist: Node version, runtime, Next.js version, build id, platform/arch, `NODE_ENV`, and a host label
   derived by testing whether specific marker variable **names** exist (`src/lib/host-detect.ts`). Values of those markers are never read into output.
 - **Where:** `src/app/tests/diagnostics/page.tsx`, `src/lib/host-detect.ts`.
-- **Verify:** the runner asserts that the diagnostics body contains none of the substrings `PATH=`, `SECRET`, `TOKEN`, or the revalidation token.
+- **Verify:** the runner asserts that the diagnostics body contains none of the substrings `PATH=`, `HOME=`, `SECRET`, `PASSWORD`, nor the runner's own secret values.
   The page is public once deployed; the facts it shows are low sensitivity but are still a fingerprinting aid.
 
 ## S17. Error handling
@@ -253,4 +253,30 @@ Installed versions are newer than every fix release. `npm audit --omit=dev` repo
 
 ## Out of scope / known limitations
 
-(Completed in the final documentation commit.)
+These are real gaps, listed so nobody assumes they are covered.
+
+- **No rate limiting.** It does not work the same way across hosts (shared state, serverless instances, CDNs), so it is deliberately not simulated here. The abusable endpoints are opt-in instead (S10), and the concurrency cap is per instance only. If you leave a deployment public, use the host's WAF or rate-limit feature.
+- **No authentication or authorization system.** The one protected endpoint uses a single shared static token (S8). There is no rotation, expiry, per-caller identity or audit log. Treat the token as disposable: rotate it after a test campaign.
+- **Weaker CSP on build-time pages.** Static, ISR and prerendered shells use `'unsafe-inline'` for scripts and styles (S4, S20). An XSS bug in those pages would not be stopped by CSP. There is currently no user-controlled output on them, but this is a trade-off, not a guarantee. Next.js's hash-based option is experimental and was not used.
+- **No CSP reporting, HSTS preload or `Cross-Origin-Embedder-Policy`.** Headers are a baseline, not a full hardening profile. HSTS is sent on every response, but a plain-HTTP localhost run cannot exercise it.
+- **Server Actions without an `Origin` header** are allowed through with a warning by Next.js (S9). Hosts that rewrite `Host` may need `allowedOrigins`.
+- **Public diagnostics page.** It shows only allowlisted facts (S16), but Node/Next versions and the host name are a fingerprinting aid. Remove or protect the page on a long-lived deployment.
+- **Host-level logging.** Many hosts log request headers or bodies. The revalidation token travels in a header (not the URL), but you should assume a host operator or log drain can see it. Rotate after testing.
+- **HTTPS is the host's job.** The runner warns when the target is not HTTPS; nothing here terminates TLS.
+- **Pre-commit scanning is best-effort.** The hook is dependency-free pattern matching (plus gitleaks if installed) and can be bypassed with `--no-verify`; CI re-scans tracked files but not git history. Run `gitleaks detect` over history before making the repository public.
+- **Dev-only audit exception** (`braces`, S1) stays open until a patched release exists.
+- **Manual review of automated updates.** Dependabot proposes updates to dependencies, action SHAs and the image digest, but nothing here verifies them automatically; read the diff.
+- **GitHub settings are not code.** Branch protection, required reviews and the "approve outside collaborators' workflows" option (S22) must be configured in the repository settings.
+- **Managed-host deployments were not exercised.** Only local, Docker and static-export runs were verified (see README).
+- **Edge runtime** is deprecated in Next.js 16; test 10 may start failing or reporting PARTIAL on future versions.
+- **TypeScript 7 and ESLint 10** were not adopted because the lint toolchain does not yet support them; revisit after dependency updates.
+
+## How to re-verify the security controls
+
+```bash
+npm audit --omit=dev --audit-level=high      # S1  production dependencies
+node scripts/secret-scan.mjs --all           # S2  tracked files
+npm run test:local                           # S3-S20 headers, auth, validation, leaks, caps (21 checks)
+npm run test:docker                          # S21 the container, hardened flags
+grep -rn "secrets\.\|pull_request_target" .github/workflows   # S22 should show no usage
+```
