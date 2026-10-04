@@ -1,0 +1,8 @@
+#!/bin/sh
+# Enabled by `npm run prepare` (git config core.hooksPath .githooks).
+# Layer 1: dependency-free scan of staged content.
+node scripts/secret-scan.mjs || exit 1
+# Layer 2: gitleaks, when installed locally (CI always runs it).
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks protect --staged --redact --no-banner || exit 1
+fi
