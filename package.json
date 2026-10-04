@@ -2,6 +2,7 @@
   "name": "nextjs-hosting-compat",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "Test suite that probes how well hosting providers support Next.js features",
   "engines": {
     "node": ">=22.18.0"
@@ -14,7 +15,13 @@
     "typecheck": "next typegen && tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "prepare": "git config core.hooksPath .githooks || true"
+    "prepare": "git config core.hooksPath .githooks || true",
+    "test:compat": "node scripts/run-compat-tests.ts",
+    "test:local": "node scripts/test-local.ts",
+    "build:standalone": "BUILD_OUTPUT=standalone next build",
+    "build:export": "node scripts/build-export.mjs",
+    "serve:export": "node scripts/serve-export.mjs",
+    "test:export": "node scripts/test-export.mjs"
   },
   "dependencies": {
     "next": "16.3.8",

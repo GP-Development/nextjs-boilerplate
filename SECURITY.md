@@ -190,6 +190,27 @@ Installed versions are newer than every fix release. `npm audit --omit=dev` repo
 - **Verify:** `curl <url>/tests/error-boundary` returns 500 and does not contain `CANARY-7f3a91`. In a browser the boundary UI appears.
   Verified in Chromium with zero CSP violations across every page route (so the nonce policy in S4 works with hydration).
 
+## S18. Test runner safety
+
+- **Threat:** the runner holds a secret (`REVALIDATE_TOKEN`) and sends traffic; it could leak the secret, hit the wrong host, be redirected elsewhere, or be tricked into writing files outside `reports/`.
+- **Mitigation:**
+  - secrets come only from environment variables (never CLI flags, which land in shell history and process lists);
+  - a redactor removes known secret values from every reason string, console line and the serialised JSON/Markdown before output;
+  - requests are pinned to the origin passed in `--url` (a request to any other origin throws) and redirects are never followed;
+  - non-localhost targets need an interactive confirmation or an explicit `--yes`; non-interactive runs without `--yes` refuse;
+  - all CLI input is validated with zod (http/https only; the `--host` label must match `[a-z0-9.-]`, which blocks path traversal in report filenames; numeric lists are bounded);
+  - the revalidation test checks a query-string token using a dummy value, never the real token, because URLs are logged by proxies and CDNs;
+  - `test:local` generates fresh random secrets per run, never writes them to disk, binds the server to 127.0.0.1, and always stops the server (also on SIGINT/SIGTERM).
+- **Where:** `scripts/compat/lib.ts`, `scripts/run-compat-tests.ts`, `scripts/compat/report.ts`, `scripts/test-local.ts`.
+- **Verify:** after a run with known secrets, `grep` the `reports/` directory for them (no matches); `--url ftp://x` and `--host ../x` exit 2; a non-local URL without `--yes` and without a TTY exits 2.
+
+## S19. Static export and the static test server
+
+- **Threat:** the export build and local static server could expose files outside `out/` or silently drop security controls.
+- **Mitigation:** `scripts/serve-export.mjs` resolves each request path, rejects NUL bytes and bad percent-encoding, and refuses anything that resolves outside `out/`; it serves GET/HEAD only and binds to 127.0.0.1. The export build runs in a gitignored temporary copy so the working tree is never modified. A static export cannot apply `next.config` headers, so the header test is expected to FAIL there (`--expect-fail security-headers`): the failure is still printed and written to the report, marked "expected in this setup", and the real fix is to configure headers at the static host or CDN.
+- **Where:** `scripts/serve-export.mjs`, `scripts/build-export.mjs`, `scripts/test-export.mjs`.
+- **Verify:** `curl --path-as-is http://127.0.0.1:3200/../package.json` returns 404 (not the file).
+
 ## Out of scope / known limitations
 
 (Completed in the final documentation commit.)

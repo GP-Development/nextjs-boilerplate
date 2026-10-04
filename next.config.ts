@@ -23,6 +23,8 @@ const nextConfig: NextConfig = {
     localPatterns: [{ pathname: '/test-image.png' }],
     qualities: [75],
     formats: ['image/webp'],
+    // Static export has no server to run the optimizer, so Next.js requires this.
+    ...(output === 'export' ? { unoptimized: true } : {}),
   },
   // Test 18: config-level redirect, rewrite and header.
   async redirects() {
@@ -53,6 +55,8 @@ const nextConfig: NextConfig = {
       },
     ]
   },
+  // The export script builds in a temp dir with its own lockfile; pin Turbopack's root there.
+  ...(output === 'export' ? { turbopack: { root: process.cwd() } } : {}),
   ...(output === 'standalone' || output === 'export' ? { output } : {}),
 }
 

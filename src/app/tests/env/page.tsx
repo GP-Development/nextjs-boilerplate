@@ -17,7 +17,9 @@ export default async function EnvPage() {
         </li>
         <li>
           public label (server read):{' '}
-          <span data-testid="public-label-server">{process.env.NEXT_PUBLIC_BUILD_LABEL}</span>
+          <span data-testid="public-label-server">
+            {process.env.NEXT_PUBLIC_BUILD_LABEL ?? 'unset'}
+          </span>
         </li>
         <li>
           server-only probe present:{' '}

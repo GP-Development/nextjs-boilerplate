@@ -4,6 +4,7 @@ node_modules/
 # next.js build output
 .next/
 out/
+.export-build/
 next-env.d.ts
 *.tsbuildinfo
 
