@@ -14,6 +14,7 @@ export const NONCE_ROUTES: readonly string[] = [
   '/tests/cookies',
   '/tests/diagnostics',
   '/tests/env',
+  '/tests/fetch-cache',
   '/tests/error-boundary',
   '/tests/server-action',
 ]

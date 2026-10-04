@@ -6,6 +6,10 @@ const schema = z.object({
   REVALIDATE_TOKEN: z.string().min(32),
   ENABLE_STRESS_TESTS: z.enum(['true', 'false']).default('false'),
   SERVER_ONLY_PROBE: z.string().min(1).optional(),
+  PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+  // Trusted origin this app uses to call its OWN route handlers (fetch-cache test).
+  // Never derived from the request Host header (that would be SSRF-able).
+  SELF_ORIGIN: z.url().optional(),
   NEXT_PUBLIC_BUILD_LABEL: z.string().max(64).default('unset'),
 })
 

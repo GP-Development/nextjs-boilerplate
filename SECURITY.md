@@ -48,7 +48,7 @@ Installed versions are newer than every fix release. `npm audit --omit=dev` repo
 - **Threat:** misconfiguration (missing or weak token) discovered late; secrets leaking through error messages.
 - **Mitigation:** all variables parsed with zod in one module; server start calls it (fail fast); errors list
   variable **names and failure kind only**, never values. `REVALIDATE_TOKEN` must be at least 32 characters.
-- **Where:** `src/env.ts`, `instrumentation.ts`.
+- **Where:** `src/env.ts`, `src/instrumentation.ts` (exits with code 1 on invalid config).
 - **Verify:** start the server with `REVALIDATE_TOKEN=short`; startup fails and the output does not contain `short`.
 
 ## S4. Security headers and CSP (Decision B)
@@ -57,7 +57,7 @@ Installed versions are newer than every fix release. `npm audit --omit=dev` repo
 - **Mitigation:** every route gets HSTS, `X-Content-Type-Options: nosniff`, `Referrer-Policy`,
   `Permissions-Policy`, `X-Frame-Options: DENY`, COOP, and a CSP containing `frame-ancestors 'none'`,
   `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`. `X-Powered-By` is disabled.
-  - **Dynamic pages** (`NONCE_ROUTES`): `proxy.ts` mints a fresh nonce per request and sets
+  - **Dynamic pages** (`NONCE_ROUTES`): `src/proxy.ts` mints a fresh nonce per request and sets
     `script-src 'self' 'nonce-…' 'strict-dynamic'` (no `unsafe-inline`).
   - **Static/ISR pages:** `script-src 'self' 'unsafe-inline'`. **Trade-off:** a nonce must be created per request
     and injected at render time, but static HTML exists before any request, so a nonce policy would block its own
@@ -66,7 +66,7 @@ Installed versions are newer than every fix release. `npm audit --omit=dev` repo
     Remote script loading, framing and plugins are still blocked on these pages.
   - **API routes:** `default-src 'none'; frame-ancestors 'none'`.
   - `upgrade-insecure-requests` is omitted: it breaks plain-HTTP localhost runs. HSTS covers HTTPS hosts.
-- **Where:** `src/lib/security-headers.ts`, `next.config.ts` (`headers()`), `proxy.ts`.
+- **Where:** `src/lib/security-headers.ts`, `next.config.ts` (`headers()`), `src/proxy.ts`.
 - **Verify:** `curl -sI <url>/` shows all headers; the compat runner checks them on every host (hosts
   sometimes strip or override headers). Dynamic pages show a `nonce-` in `script-src`.
 
@@ -76,8 +76,24 @@ Installed versions are newer than every fix release. `npm audit --omit=dev` repo
   auth enforced only there was bypassable. Proxy can also be deployed to a CDN and run outside the app.
 - **Mitigation:** proxy only adds headers, rewrites and redirects. Protected endpoints verify credentials
   themselves in the route handler. Patched Next.js is used (S1).
-- **Where:** comment in `proxy.ts`; `src/app/api/tests/revalidate/route.ts` (added later).
+- **Where:** comment in `src/proxy.ts`; `src/app/api/tests/revalidate/route.ts` (added later).
 - **Verify:** the runner sends `x-middleware-subrequest` and confirms behavior is unchanged.
+
+## S6. Request-derived values and SSRF
+
+- **Threat:** the fetch-cache test makes a server-side request to this app's own route handler. Building that URL from
+  the incoming `Host` header would let an attacker point the server at arbitrary hosts (SSRF / host-header injection).
+- **Mitigation:** the origin comes only from validated config (`SELF_ORIGIN`, a zod `url`) with a fixed localhost
+  fallback. Failures return a generic marker string, with no URL or stack trace in the output.
+- **Where:** `src/app/tests/fetch-cache/page.tsx`, `src/env.ts`.
+- **Verify:** send `Host: evil.example`; the page still reports values from the trusted origin.
+
+## S7. Route params
+
+- **Threat:** untrusted path segments reaching rendering logic.
+- **Mitigation:** the `[slug]` param is parsed with a zod enum allowlist; anything else calls `notFound()` and returns a real 404.
+- **Where:** `src/app/tests/dynamic-routes/[slug]/page.tsx`.
+- **Verify:** `curl -o /dev/null -w '%{http_code}' <url>/tests/dynamic-routes/nope` prints 404.
 
 ## Out of scope / known limitations
 
