@@ -51,6 +51,34 @@ Installed versions are newer than every fix release. `npm audit --omit=dev` repo
 - **Where:** `src/env.ts`, `instrumentation.ts`.
 - **Verify:** start the server with `REVALIDATE_TOKEN=short`; startup fails and the output does not contain `short`.
 
+## S4. Security headers and CSP (Decision B)
+
+- **Threat:** XSS, clickjacking, MIME sniffing, protocol downgrade, referrer/feature leakage.
+- **Mitigation:** every route gets HSTS, `X-Content-Type-Options: nosniff`, `Referrer-Policy`,
+  `Permissions-Policy`, `X-Frame-Options: DENY`, COOP, and a CSP containing `frame-ancestors 'none'`,
+  `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`. `X-Powered-By` is disabled.
+  - **Dynamic pages** (`NONCE_ROUTES`): `proxy.ts` mints a fresh nonce per request and sets
+    `script-src 'self' 'nonce-…' 'strict-dynamic'` (no `unsafe-inline`).
+  - **Static/ISR pages:** `script-src 'self' 'unsafe-inline'`. **Trade-off:** a nonce must be created per request
+    and injected at render time, but static HTML exists before any request, so a nonce policy would block its own
+    scripts, and forcing dynamic rendering would destroy the SSG/ISR tests. Next.js's hash-based alternative
+    (`experimental.sri`) is marked experimental in the bundled docs, so it is not used for a security control.
+    Remote script loading, framing and plugins are still blocked on these pages.
+  - **API routes:** `default-src 'none'; frame-ancestors 'none'`.
+  - `upgrade-insecure-requests` is omitted: it breaks plain-HTTP localhost runs. HSTS covers HTTPS hosts.
+- **Where:** `src/lib/security-headers.ts`, `next.config.ts` (`headers()`), `proxy.ts`.
+- **Verify:** `curl -sI <url>/` shows all headers; the compat runner checks them on every host (hosts
+  sometimes strip or override headers). Dynamic pages show a `nonce-` in `script-src`.
+
+## S5. Proxy is not an authorization boundary
+
+- **Threat:** CVE-2025-29927 allowed skipping middleware with a crafted `x-middleware-subrequest` header; any
+  auth enforced only there was bypassable. Proxy can also be deployed to a CDN and run outside the app.
+- **Mitigation:** proxy only adds headers, rewrites and redirects. Protected endpoints verify credentials
+  themselves in the route handler. Patched Next.js is used (S1).
+- **Where:** comment in `proxy.ts`; `src/app/api/tests/revalidate/route.ts` (added later).
+- **Verify:** the runner sends `x-middleware-subrequest` and confirms behavior is unchanged.
+
 ## Out of scope / known limitations
 
 (Completed in the final documentation commit.)
