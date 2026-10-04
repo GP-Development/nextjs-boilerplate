@@ -154,6 +154,42 @@ Installed versions are newer than every fix release. `npm audit --omit=dev` repo
 - **Verify:** `curl -si -X POST <url>/api/tests/cookies | grep -i set-cookie` shows all three flags.
   `Secure` cookies are not stored by browsers over plain HTTP (except localhost); the runner replays the `Cookie` header itself.
 
+## S14. Image optimizer
+
+- **Threat:** the optimizer fetches and transforms images, which makes it an SSRF vector and a CPU/cost-abuse surface if it accepts arbitrary URLs, sizes or qualities.
+- **Mitigation:** `images.remotePatterns: []` (no remote hosts), `localPatterns` limited to `/test-image.png`,
+  `qualities: [75]`, `formats: ['image/webp']`. SVG stays disallowed (the default).
+- **Where:** `next.config.ts`, `src/app/tests/image/page.tsx`.
+- **Verify:** `/_next/image?url=https://example.com/x.png&w=640&q=75`, an off-list width (641), an off-list quality (50)
+  and another local path each return 400. The runner checks all four.
+
+## S15. Environment variable exposure
+
+- **Threat:** a server-only secret compiled into client JavaScript, or printed.
+- **Mitigation:** server-only values are read through `src/lib/server-secrets.ts`, which imports `server-only` (a build error if a
+  Client Component imports it). The env page shows only present/absent plus the first 12 hex chars of a SHA-256. For a high-entropy
+  value the hash reveals nothing useful; do **not** use a guessable value for `SERVER_ONLY_PROBE`.
+- **Where:** `src/lib/server-secrets.ts`, `src/app/tests/env/`.
+- **Verify:** the runner (given the probe value in its own environment) confirms the value is absent from the page HTML and every
+  client chunk the page loads, and that the `NEXT_PUBLIC_` label is present in the client bundle. Result output never contains the value.
+
+## S16. Diagnostics page allowlist
+
+- **Threat:** information disclosure, since dumping `process.env` leaks secrets and platform internals.
+- **Mitigation:** an explicit allowlist: Node version, runtime, Next.js version, build id, platform/arch, `NODE_ENV`, and a host label
+  derived by testing whether specific marker variable **names** exist (`src/lib/host-detect.ts`). Values of those markers are never read into output.
+- **Where:** `src/app/tests/diagnostics/page.tsx`, `src/lib/host-detect.ts`.
+- **Verify:** the runner asserts that the diagnostics body contains none of the substrings `PATH=`, `SECRET`, `TOKEN`, or the revalidation token.
+  The page is public once deployed; the facts it shows are low sensitivity but are still a fingerprinting aid.
+
+## S17. Error handling
+
+- **Threat:** stack traces and internal messages leaking to users.
+- **Mitigation:** `src/app/error.tsx` never renders `error.message`; production Next.js strips server error text; route handlers return generic
+  JSON errors. `src/app/tests/error-boundary/page.tsx` throws a canary string on purpose.
+- **Verify:** `curl <url>/tests/error-boundary` returns 500 and does not contain `CANARY-7f3a91`. In a browser the boundary UI appears.
+  Verified in Chromium with zero CSP violations across every page route (so the nonce policy in S4 works with hydration).
+
 ## Out of scope / known limitations
 
 (Completed in the final documentation commit.)
