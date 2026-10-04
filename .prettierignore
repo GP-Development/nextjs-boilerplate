@@ -1,0 +1,7 @@
+.next
+out
+.export-build
+node_modules
+package-lock.json
+reports
+variants/*/.next

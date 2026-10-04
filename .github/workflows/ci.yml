@@ -1,0 +1,64 @@
+name: CI
+
+# Security design (see SECURITY.md S22):
+#  - `pull_request` only. NEVER `pull_request_target`, which would run fork code with secrets.
+#  - This workflow references no secrets at all, so there is nothing for a fork PR to steal.
+#  - Default token is read-only; no job asks for more.
+#  - Third-party actions are pinned to full commit SHAs (the comment names the release).
+#  - No dependency cache: caches are a known poisoning vector and the install is small.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false # do not leave the token in .git/config for later steps
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - run: npm ci --ignore-scripts
+      # --no-verify can bypass the local hook, so CI scans every tracked file again.
+      - name: Secret scan
+        run: node scripts/secret-scan.mjs --all
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm run build:cache-components
+      # Production dependencies must be clean. Dev-only exception: see SECURITY.md S1.
+      - name: Audit (production dependencies, gating)
+        run: npm audit --omit=dev --audit-level=high
+      - name: Audit (all dependencies, informational)
+        run: npm audit --audit-level=high
+        continue-on-error: true
+      - run: npm run test:local
+      - run: npm run test:local:cache-components
+
+  docker:
+    needs: check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      # The runner executes on the host (it imports zod), so dependencies are needed here too.
+      - run: npm ci --ignore-scripts
+      # Builds the image, runs it read-only/non-root/no-capabilities, runs the suite against it.
+      - run: npm run test:docker -- --fast
