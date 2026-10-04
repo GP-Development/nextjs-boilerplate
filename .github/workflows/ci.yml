@@ -58,5 +58,7 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
+      # The runner executes on the host (it imports zod), so dependencies are needed here too.
+      - run: npm ci --ignore-scripts
       # Builds the image, runs it read-only/non-root/no-capabilities, runs the suite against it.
       - run: npm run test:docker -- --fast
