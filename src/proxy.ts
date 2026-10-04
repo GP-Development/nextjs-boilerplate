@@ -8,8 +8,29 @@ import { buildNonceCsp, usesNonce } from '@/lib/security-headers'
 // CVE-2025-29927 showed that middleware could be skipped via a crafted header. Anything
 // that needs protecting (e.g. the revalidate endpoint) checks its own credentials in the
 // route handler itself. See SECURITY.md S5.
+
+const PROXY_HEADER = 'x-compat-proxy'
+
+function mark(response: NextResponse): NextResponse {
+  response.headers.set(PROXY_HEADER, 'active')
+  return response
+}
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
+
+  // Test 12: one redirect and one rewrite. Destinations are fixed constants, never user
+  // input, so there is no open redirect.
+  if (pathname === '/tests/proxy-redirect') {
+    const url = request.nextUrl.clone()
+    url.pathname = '/tests/static'
+    return mark(NextResponse.redirect(url, 307))
+  }
+  if (pathname === '/tests/proxy-rewrite') {
+    const url = request.nextUrl.clone()
+    url.pathname = '/tests/proxy-rewrite-target'
+    return mark(NextResponse.rewrite(url))
+  }
 
   if (usesNonce(pathname)) {
     // Fresh, unguessable value for every request.
@@ -23,13 +44,15 @@ export function proxy(request: NextRequest) {
 
     const response = NextResponse.next({ request: { headers: requestHeaders } })
     response.headers.set('Content-Security-Policy', csp)
-    return response
+    return mark(response)
   }
 
-  return NextResponse.next()
+  return mark(NextResponse.next())
 }
 
 export const config = {
-  // Skip framework assets; they are static files and get headers from next.config.ts.
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  // Skipped: framework assets (static files; headers come from next.config.ts) and the
+  // body-size endpoint (when proxy matches a route Next.js buffers up to 10 MB of the request
+  // body in memory and silently truncates beyond it, which would corrupt that test).
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|api/tests/body-size).*)'],
 }

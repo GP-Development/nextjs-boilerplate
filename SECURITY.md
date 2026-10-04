@@ -117,6 +117,43 @@ Installed versions are newer than every fix release. `npm audit --omit=dev` repo
 - **Where:** `src/app/tests/server-action/`.
 - **Verify:** the runner replays the form with a forged Origin and expects a non-2xx response.
 
+## S10. Opt-in stress endpoints (abuse surface)
+
+- **Threat:** `/api/tests/long-running` and `/api/tests/body-size` let anyone tie up workers or bandwidth on a public deployment.
+- **Mitigation:** both answer 404 unless `ENABLE_STRESS_TESTS=true` (default `false`, validated by zod in `src/env.ts`).
+  When enabled: `seconds` is a zod-validated integer 1-60; at most 5 concurrent long-running requests per instance
+  (429 beyond that; best effort, since there is no shared state across instances); abandoned requests free their slot
+  via `request.signal`; body size is capped at 8 MiB and counted while streaming, so an oversized upload is cut off
+  rather than buffered, including chunked uploads that send no `Content-Length`.
+- **Operational advice:** enable only for the duration of a measurement run, then remove the variable.
+- **Where:** `src/lib/stress-guard.ts`, `src/lib/body.ts`, `src/app/api/tests/{long-running,body-size}/route.ts`.
+- **Verify:** without the flag both return 404; with it, `seconds=61` returns 400 and a 9 MB body returns 413.
+
+## S11. Proxy body buffering
+
+- **Threat:** when a route is matched by `proxy.ts`, Next.js clones and buffers the request body in memory (default
+  cap 10 MB) and silently truncates beyond it. That is a memory-amplification risk and would corrupt the body-size measurement.
+- **Mitigation:** `/api/tests/body-size` is excluded from the proxy matcher, and the endpoint enforces its own streaming cap.
+- **Where:** `matcher` in `src/proxy.ts`.
+- **Verify:** `curl -sI -X POST <url>/api/tests/body-size` has no `x-compat-proxy` header (other routes do).
+
+## S12. JSON route handler input
+
+- **Threat:** malformed, oversized or unexpected input.
+- **Mitigation:** content type must be `application/json` (415); body capped at 4 KiB (413); parsed with a `.strict()`
+  zod object (unknown keys rejected); all failures return `{"error":"invalid request"}` with no detail.
+- **Where:** `src/app/api/tests/node-route/route.ts`.
+- **Verify:** the runner posts valid, empty-name, extra-key, non-JSON and wrong-content-type bodies.
+
+## S13. Cookies, rewrite and redirect
+
+- **Threat:** cookie theft or leakage (XSS, plain HTTP, cross-site sends); open redirects.
+- **Mitigation:** the test cookie is `HttpOnly; Secure; SameSite=Lax; Path=/` with a 10-minute lifetime, a random value,
+  and no sensitive content. Redirect and rewrite destinations are hard-coded constants, never derived from input.
+- **Where:** `src/app/api/tests/cookies/route.ts`, `src/proxy.ts`.
+- **Verify:** `curl -si -X POST <url>/api/tests/cookies | grep -i set-cookie` shows all three flags.
+  `Secure` cookies are not stored by browsers over plain HTTP (except localhost); the runner replays the `Cookie` header itself.
+
 ## Out of scope / known limitations
 
 (Completed in the final documentation commit.)
