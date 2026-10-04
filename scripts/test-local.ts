@@ -5,12 +5,9 @@
 // Security: secrets are generated fresh per run (never written to disk), passed to child
 // processes through the environment only, and the server is bound to 127.0.0.1.
 import { spawn, spawnSync } from 'node:child_process'
-import type { ChildProcess } from 'node:child_process'
-import { randomBytes } from 'node:crypto'
-import { createServer } from 'node:net'
 import { resolve } from 'node:path'
-import { once } from 'node:events'
-import { makeRedactor, sleep } from './compat/lib.ts'
+import { makeRedactor } from './compat/lib.ts'
+import { freePort, makeRunSecrets, waitUntilReady } from './compat/local.ts'
 
 const root = resolve(import.meta.dirname, '..')
 const args = process.argv.slice(2)
@@ -19,38 +16,8 @@ const variant = variantIndex >= 0 ? args[variantIndex + 1] : 'main'
 const appDir = variant === 'cache-components' ? resolve(root, 'variants/cache-components') : root
 const nextBin = resolve(root, 'node_modules/next/dist/bin/next')
 
-const secrets = {
-  revalidateToken: randomBytes(24).toString('hex'),
-  serverProbe: `probe-${randomBytes(12).toString('hex')}`,
-}
+const { label, ...secrets } = makeRunSecrets()
 const redact = makeRedactor(secrets)
-const label = `compat-${randomBytes(4).toString('hex')}`
-
-async function freePort(): Promise<number> {
-  const server = createServer()
-  server.listen(0, '127.0.0.1')
-  await once(server, 'listening')
-  const address = server.address()
-  const port = typeof address === 'object' && address ? address.port : 0
-  server.close()
-  await once(server, 'close')
-  return port
-}
-
-async function waitUntilReady(url: string, child: ChildProcess, timeoutMs = 60_000): Promise<void> {
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    if (child.exitCode !== null) throw new Error('server exited before becoming ready')
-    try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(2000), redirect: 'manual' })
-      if (res.status < 500) return
-    } catch {
-      // not listening yet
-    }
-    await sleep(300)
-  }
-  throw new Error('server did not become ready in time')
-}
 
 async function main(): Promise<number> {
   console.log(`[test:local] building (variant: ${variant})…`)
@@ -99,7 +66,7 @@ async function main(): Promise<number> {
 
   try {
     console.log(`[test:local] starting production server on ${url}`)
-    await waitUntilReady(url, server)
+    await waitUntilReady(url, () => server.exitCode === null)
     const runner = spawnSync(
       process.execPath,
       [

@@ -26,7 +26,8 @@
     "serve:export": "node scripts/serve-export.mjs",
     "test:export": "node scripts/test-export.mjs",
     "build:cache-components": "npm run build -w compat-cache-components",
-    "test:local:cache-components": "node scripts/test-local.ts --variant cache-components"
+    "test:local:cache-components": "node scripts/test-local.ts --variant cache-components",
+    "test:docker": "node scripts/test-docker.ts"
   },
   "dependencies": {
     "next": "16.3.8",

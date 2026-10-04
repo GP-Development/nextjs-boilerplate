@@ -222,6 +222,35 @@ Installed versions are newer than every fix release. `npm audit --omit=dev` repo
 - **Where:** `variants/cache-components/`, `scripts/compat/tests-cache-components.ts`.
 - **Verify:** `npm run test:local:cache-components` passes the `security-headers` and `cache-components` tests.
 
+## S21. Docker image
+
+- **Threat:** a mutable base tag changing underneath us; secrets baked into layers; root inside the container; build tooling shipped to production; a writable filesystem for an attacker to persist in.
+- **Mitigation:** base image pinned by digest (`node:22-alpine@sha256:0a7108bf...`); multi-stage build (dev dependencies and sources stay in the build stage; the runtime image holds only the standalone output, 86 MB);
+  `npm ci --ignore-scripts` from the lockfile; runs as the unprivileged `node` user (uid 1000) and `/app` is root-owned and not writable; no secrets at build time (the only build arg is the public `NEXT_PUBLIC_BUILD_LABEL`);
+  `.dockerignore` excludes `.env*`, `.git`, `node_modules`, reports and scripts. An optional **build secret** (`--secret id=extra_ca`) supports TLS-inspecting corporate proxies: it is mounted for one command only and is never stored in a layer.
+  `npm run test:docker` runs the container with `--read-only`, `--cap-drop ALL` and `no-new-privileges`, with only the Next.js cache directory as a tmpfs; secrets are passed as `-e NAME` (no value on the command line, so not visible in `ps`).
+- **Where:** `Dockerfile`, `.dockerignore`, `scripts/test-docker.ts`.
+- **Verify:** `docker image inspect nextjs-compat-test:main --format '{{.Config.User}}'` prints `node`; `docker history --no-trunc <image> | grep -i token` finds nothing;
+  `docker run --rm --entrypoint sh <image> -c 'touch /app/x'` is denied; `npm run test:docker` passes.
+- **Known gap:** the digest is pinned manually; Dependabot (S23) proposes updates, but a human must review them.
+
+## S22. CI (GitHub Actions)
+
+- **Threat:** a malicious PR (especially from a fork) exfiltrating secrets or tampering with the repo; a compromised or retagged third-party action; poisoned build caches.
+- **Mitigation:** trigger is `pull_request` (never `pull_request_target`); the workflow references **no secrets**; top-level `permissions: contents: read`; `persist-credentials: false` on checkout;
+  `actions/checkout` and `actions/setup-node` pinned to full commit SHAs (release noted in a comment); no dependency cache; `npm ci --ignore-scripts`; the secret scan re-runs over all tracked files (because `--no-verify` bypasses the local hook);
+  production audit gates the build (`npm audit --omit=dev --audit-level=high`), the full audit is informational (see the dev-only exception in S1).
+- **Where:** `.github/workflows/ci.yml`.
+- **Verify:** `grep -n 'secrets\.\|pull_request_target' .github/workflows/ci.yml` finds no use; every `uses:` line has a 40-character SHA.
+- **Known gap:** the repository's branch protection (required reviews and status checks) and the "Require approval for outside collaborators" Actions setting are GitHub settings that cannot be committed; configure them in the repository settings.
+
+## S23. Dependabot
+
+- **Threat:** silently drifting onto vulnerable versions of Next.js, React, actions or the base image.
+- **Mitigation:** weekly update PRs for npm (root and workspace), GitHub Actions (keeps the pinned SHAs current) and Docker (base image digest). Next.js/React packages are grouped so they move together.
+- **Where:** `.github/dependabot.yml`.
+- **Verify:** the Dependabot tab in the repository's Insights shows the three ecosystems.
+
 ## Out of scope / known limitations
 
 (Completed in the final documentation commit.)

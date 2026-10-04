@@ -1,0 +1,24 @@
+# Secrets and VCS: must never enter the build context (and so never an image layer)
+.env*
+.git
+.gitignore
+.githooks
+.github
+
+# Rebuilt inside the image
+node_modules
+**/node_modules
+.next
+**/.next
+out
+.export-build
+
+# Not needed at runtime
+reports
+scripts
+docs
+*.md
+Dockerfile
+.dockerignore
+**/*.tsbuildinfo
+next-env.d.ts

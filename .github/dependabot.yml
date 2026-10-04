@@ -1,0 +1,21 @@
+version: 2
+updates:
+  # Application dependencies (root + the cache-components workspace share one lockfile).
+  - package-ecosystem: npm
+    directories: ['/', '/variants/cache-components']
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      next-and-react:
+        patterns: ['next', 'react', 'react-dom', 'eslint-config-next', '@types/react*']
+  # CI actions are pinned to commit SHAs; Dependabot keeps the SHAs current.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  # Base image digest in the Dockerfile.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly

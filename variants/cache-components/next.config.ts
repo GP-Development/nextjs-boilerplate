@@ -7,7 +7,9 @@ import { BASE_SECURITY_HEADERS, FALLBACK_CSP } from '../../src/lib/security-head
 // dynamic by default, enables the "use cache" directive and Partial Prerendering, and it
 // forbids `runtime = 'edge'` and the `revalidate` / `dynamic` route segment configs. That is
 // why this lives in its own app instead of the main one (see README).
+// BUILD_OUTPUT=standalone is set by the Dockerfile for container hosting.
 const nextConfig: NextConfig = {
+  ...(process.env.BUILD_OUTPUT === 'standalone' ? { output: 'standalone' as const } : {}),
   cacheComponents: true,
   poweredByHeader: false,
   // This app has only pages and layouts (.tsx). Next.js locates proxy files using these
