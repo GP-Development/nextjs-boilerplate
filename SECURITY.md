@@ -95,6 +95,28 @@ Installed versions are newer than every fix release. `npm audit --omit=dev` repo
 - **Where:** `src/app/tests/dynamic-routes/[slug]/page.tsx`.
 - **Verify:** `curl -o /dev/null -w '%{http_code}' <url>/tests/dynamic-routes/nope` prints 404.
 
+## S8. Revalidation endpoint
+
+- **Threat:** anyone able to purge caches (cost, cache-busting DoS); token theft via logs/URLs; timing attacks.
+- **Mitigation:** POST only (other methods get 405); token read from the `x-revalidate-token` header, never
+  the query string; compared with `crypto.timingSafeEqual` over SHA-256 digests (equal length, so the secret's
+  length does not leak); generic 401 with `Cache-Control: no-store`; nothing is logged; no body is read.
+  The token must be at least 32 characters (S3). The endpoint verifies credentials itself and does not depend on `proxy.ts` (S5).
+- **Where:** `src/app/api/tests/revalidate/route.ts`, `src/lib/constant-time.ts`.
+- **Verify:** GET returns 405; a missing, wrong or query-string token returns 401; the correct header returns 200.
+  The runner checks all four without printing the token.
+
+## S9. Server Action
+
+- **Threat:** CSRF against actions, unvalidated input, XSS through echoed input.
+- **Mitigation:** Next.js compares the `Origin` header to the host and aborts mismatches (verified: a forged
+  `Origin: https://evil.example` is rejected). Input is parsed with zod (trimmed, 1-100 chars); failures return a
+  generic "Invalid input". The echo is rendered as React text, so it is HTML-escaped. There is no storage or side effect.
+- **Known caveat:** a request carrying **no** `Origin` header is allowed through with a warning (per the Next.js docs).
+  Hosts that rewrite `Host`/`x-forwarded-host` may need `experimental.serverActions.allowedOrigins`.
+- **Where:** `src/app/tests/server-action/`.
+- **Verify:** the runner replays the form with a forged Origin and expects a non-2xx response.
+
 ## Out of scope / known limitations
 
 (Completed in the final documentation commit.)
