@@ -1,0 +1,22 @@
+# dependencies
+node_modules/
+
+# next.js build output
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+# secrets: ignore every .env* file except the placeholder example
+.env*
+!.env.example
+
+# generated test reports (may reveal deployment URLs)
+reports/*
+!reports/.gitkeep
+
+# misc
+.DS_Store
+*.log
+*.pem
+coverage/
