@@ -211,6 +211,17 @@ Installed versions are newer than every fix release. `npm audit --omit=dev` repo
 - **Where:** `scripts/serve-export.mjs`, `scripts/build-export.mjs`, `scripts/test-export.mjs`.
 - **Verify:** `curl --path-as-is http://127.0.0.1:3200/../package.json` returns 404 (not the file).
 
+## S20. Cache Components variant (second deployable app)
+
+- **Threat:** a second app is a second set of security controls that can silently drift from the main app (missing headers, weaker CSP).
+- **Mitigation:** the variant imports the same `src/lib/security-headers.ts` as the main app, so the header set is defined once. Its CSP is the
+  documented fallback policy (no nonce) because a Partial-Prerender static shell is created at build time and cannot carry a per-request nonce
+  (same trade-off as S4). The runner runs the security-header test against the variant too. No new third-party packages were added (npm workspaces
+  only add link entries to the lockfile). `pageExtensions` is limited to `tsx`/`jsx`, which also stops the variant from accidentally compiling the
+  main app's `src/proxy.ts` through the shared workspace root.
+- **Where:** `variants/cache-components/`, `scripts/compat/tests-cache-components.ts`.
+- **Verify:** `npm run test:local:cache-components` passes the `security-headers` and `cache-components` tests.
+
 ## Out of scope / known limitations
 
 (Completed in the final documentation commit.)

@@ -7,12 +7,15 @@
   "engines": {
     "node": ">=22.18.0"
   },
+  "workspaces": [
+    "variants/*"
+  ],
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "next typegen && tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit && npm run typecheck -w compat-cache-components",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "git config core.hooksPath .githooks || true",
@@ -21,7 +24,9 @@
     "build:standalone": "BUILD_OUTPUT=standalone next build",
     "build:export": "node scripts/build-export.mjs",
     "serve:export": "node scripts/serve-export.mjs",
-    "test:export": "node scripts/test-export.mjs"
+    "test:export": "node scripts/test-export.mjs",
+    "build:cache-components": "npm run build -w compat-cache-components",
+    "test:local:cache-components": "node scripts/test-local.ts --variant cache-components"
   },
   "dependencies": {
     "next": "16.3.8",

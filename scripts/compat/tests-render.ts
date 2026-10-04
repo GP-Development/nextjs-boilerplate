@@ -236,11 +236,13 @@ export const renderTests: TestDef[] = [
     id: 'security-headers',
     feature: 'S',
     name: 'Security headers delivered',
-    async run({ http, mode }) {
+    async run({ http, mode, variant }) {
       const targets =
-        mode === 'export'
-          ? ['/tests/static']
-          : ['/tests/static', '/tests/dynamic', '/api/tests/node-route']
+        variant === 'cache-components'
+          ? ['/tests/cache-components']
+          : mode === 'export'
+            ? ['/tests/static']
+            : ['/tests/static', '/tests/dynamic', '/api/tests/node-route']
       const missing: string[] = []
       const warnings: string[] = []
       for (const path of targets) {

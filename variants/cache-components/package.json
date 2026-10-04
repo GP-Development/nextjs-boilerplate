@@ -1,0 +1,18 @@
+{
+  "name": "compat-cache-components",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Test 8: Cache Components / use cache / Partial Prerendering (separate app because cacheComponents is a global flag)",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "next typegen && tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "16.3.8",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  }
+}

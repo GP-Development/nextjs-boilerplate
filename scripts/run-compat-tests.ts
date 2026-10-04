@@ -144,6 +144,8 @@ async function main(): Promise<number> {
     sleep,
   }
 
+  // The cache-components app only has its own page; other tests would just 404 there.
+  const variantIds = new Set(['cache-components', 'security-headers'])
   const only = opts.only ? new Set(opts.only.split(',').map((s) => s.trim())) : undefined
   const expectFail = new Set(
     (opts['expect-fail'] ?? '')
@@ -151,7 +153,9 @@ async function main(): Promise<number> {
       .map((x) => x.trim())
       .filter(Boolean),
   )
-  const selected = all.filter((t) => !only || only.has(t.id))
+  const selected = all.filter(
+    (t) => (!only || only.has(t.id)) && (opts.variant === 'main' || variantIds.has(t.id)),
+  )
   const startedAt = new Date()
   const results: TestRecord[] = []
   for (const test of selected) {
